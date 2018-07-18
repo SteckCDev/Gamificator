@@ -3,105 +3,124 @@ using System.IO;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
-using System.Security.Cryptography;
+using System.Collections.Generic;
 
 namespace Gamification
 {
 	public partial class MainForm : Form
 	{
 		XP xp;
-
 		Thread mon;
 
-		const int SIZE = 2;
+		readonly int srcQuantity = 2;
 		string dir;
 		string projectName;
-		string[] src;
+		string[] srcList;
 		int[] lines;
-		string lastReleseHash;
-		int[] array;
+		int[] lastRelease;
+		int[] lastDebug;
 
 		public MainForm()
 		{
 			InitializeComponent();
 
-			//$"{File.ReadAllLines("").Length}";
-			//ui_level.Location = new Point(this.Size.Width / 2 - ui_level.Size.Width / 2, ui_level.Location.Y);
+			TopMost = true;
+			Screen sc = Screen.FromHandle(Handle);
+			Location = new Point(SystemInformation.PrimaryMonitorSize.Width - Size.Width, sc.WorkingArea.Height - Size.Height);
+
+			xp = new XP(new float[] { 1.5f, 2f }, 50, 0, 0); // TAKE FROM CONFIG
+
+			dir = "C:/Users/grief/Documents/Visual Studio 2017/Projects/Learning/Learning/";
+			projectName = "Learning";
+
+			List<string> sourceList = new List<string>();
+			FileHelper.GetAllFiles(dir, "*.cpp", sourceList);
+			var temp = sourceList.ToArray();
+			sourceList = null;
+			sourceList = new List<string>();
+			FileHelper.GetAllFiles(dir, "*.h", sourceList);
+
+			srcList = new string[temp.Length + sourceList.ToArray().Length];
+			temp.CopyTo(srcList, 0);
+			sourceList.CopyTo(srcList, temp.Length);
+
+			srcQuantity = srcList.Length;
+			lines = new int[srcQuantity];
+
+			DateTime dateTime;
+			dateTime = File.GetLastWriteTime($"{dir}../Release/{projectName}.exe");
+			lastRelease = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute }; // TAKE FROM CONFIG
+			dateTime = File.GetLastWriteTime($"{dir}../Debug/{projectName}.exe");
+			lastDebug = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute };   // TAKE FROM CONFIG
+
+			for (int i = 0; i < srcQuantity; i++)
+			{
+				lines[i] = File.ReadAllLines(srcList[i]).Length;
+			}
 		}
 
 		private void MainForm_Load(object sender, EventArgs e)
 		{
-			xp = new XP(new float[] { 1.5f, 2f }, 50, 0, 0);
-			mon = new Thread(Monitoring);
-
-			dir = "C:/Users/grief/Documents/Visual Studio 2017/Projects/Learning/Learning/";
-			projectName = "Learning";
-			src = new string[] { "main.cpp", "Source.cpp" };
-			lines = new int[SIZE];
-			lastReleseHash = Checksum($"{dir}../Release/{projectName}.exe"); // TAKE FROM CONFIG
-
-			DateTime dateTime = File.GetLastWriteTime($"{dir}../Release/{projectName}.exe");
-			array = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute };
-
-			for (int i = 0; i < SIZE; i++)
-			{
-				lines[i] = File.ReadAllLines(dir + src[i]).Length;
-			}
-
 			UpdateInfo();
 			Start();
 		}
 
-		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
-		{
-			// CFG HERE
-
-			Stop();
-		}
+		private void MainForm_FormClosing(object sender, FormClosingEventArgs e) { Stop(); }
 
 		private void Monitoring()
 		{
 			while (true)
 			{
+				int startXp = xp.GetXP();
+				int tarXp = xp.GetTarget();
+
 				/* SRC CHECK START */
 
-				for (int i = 0; i < SIZE; i++)
+				for (int i = 0; i < srcQuantity; i++)
 				{
-					int currLines = File.ReadAllLines(dir + src[i]).Length;
-					if (currLines > lines[i])
-					{
-						xp.IncreaseXp(currLines - lines[i]);
-						lines[i] = currLines;
-					}
-					else if (currLines < lines[i])
-					{
-						//lines[i] = currLines;
+					if (File.Exists(srcList[i])) {
+						int currLines = File.ReadAllLines(srcList[i]).Length;
+						if (currLines > lines[i])
+						{
+							xp.IncreaseXp(currLines - lines[i]);
+							lines[i] = currLines;
+						}
+						else if (currLines < lines[i])
+						{
+							//lines[i] = currLines;
+						}
 					}
 				}
 
 				/* SRC CHECK END */
 
 				/* RELEASE CHECK START */
-				/*
-				string hash = Checksum($"{dir}../Release/{projectName}.exe");
-
-				if (lastReleseHash != hash)
-				{
-					lastReleseHash = hash;
-					xp.IncreaseXp(20);
-				}
-				*/
 
 				DateTime dateTime = File.GetLastWriteTime($"{dir}../Release/{projectName}.exe");
-				if (dateTime.Year > array[0] || dateTime.DayOfYear > array[1] || dateTime.Hour > array[2] || dateTime.Minute > array[3])
+				if (dateTime.Year > lastRelease[0] || dateTime.DayOfYear > lastRelease[1] || dateTime.Hour > lastRelease[2] || dateTime.Minute > lastRelease[3])
 				{
-					array[0] = dateTime.Year; array[1] = dateTime.DayOfYear; array[2] = dateTime.Hour; array[3] = dateTime.Minute;
+					lastRelease[0] = dateTime.Year; lastRelease[1] = dateTime.DayOfYear; lastRelease[2] = dateTime.Hour; lastRelease[3] = dateTime.Minute;
 					xp.IncreaseXp(20);
 				}
 
 				/* RELEASE CHECK END */
 
-				UpdateInfo();
+				/* DEBUG CHECK START */
+
+				dateTime = File.GetLastWriteTime($"{dir}../Debug/{projectName}.exe");
+				if (dateTime.Year > lastDebug[0] || dateTime.DayOfYear > lastDebug[1] || dateTime.Hour > lastDebug[2] || dateTime.Minute > lastDebug[3])
+				{
+					lastDebug[0] = dateTime.Year; lastDebug[1] = dateTime.DayOfYear; lastDebug[2] = dateTime.Hour; lastDebug[3] = dateTime.Minute;
+					xp.IncreaseXp(5);
+				}
+
+				/* DEBUG CHECK END */
+
+				if (startXp != xp.GetXP() || tarXp != xp.GetTarget())
+				{
+					UpdateInfo();
+				}
+				
 				Thread.Sleep(1000);
 			}
 		}
@@ -112,6 +131,9 @@ namespace Gamification
 			SetText($"{xp.GetXP()} XP", ui_xp);
 			SetText($"{xp.GetTarget()} XP", ui_xpTarget);
 			SetText($"Level {xp.GetLevel()}", ui_level);
+			SetLocation(new Point(Size.Width / 2 - ui_level.Size.Width / 2, ui_level.Location.Y), ui_level);
+			SetLocation(new Point(12, ui_xp.Location.Y), ui_xp);
+			SetLocation(new Point(Size.Width - 12 - ui_xpTarget.Size.Width, ui_xpTarget.Location.Y), ui_xpTarget);
 		}
 
 		/* THREADS */
@@ -131,6 +153,7 @@ namespace Gamification
 		}
 
 		delegate void StringArgReturningVoidDelegate(string text, Control obj);
+		delegate void LocationArgReturningVoidDelegate(Point point, Control obj);
 		delegate void IntegerArgReturningVoidDelegate(int value, int max, ProgressBar obj);
 
 		private void SetText(string text, Control obj)
@@ -160,26 +183,32 @@ namespace Gamification
 			}
 		}
 
+		private void SetLocation(Point point, Control obj)
+		{
+			if (obj.InvokeRequired)
+			{
+				LocationArgReturningVoidDelegate d = new LocationArgReturningVoidDelegate(SetLocation);
+				Invoke(d, new object[] { point, obj });
+			}
+			else
+			{
+				obj.Location = point;
+			}
+		}
+
 		/* TOOLS */
 		/* TOOLS */
 		/* TOOLS */
 
-		private string Checksum(string path)
-		{	if (File.Exists(path))
+		public static class FileHelper
+		{
+			public static void GetAllFiles(string rootDirectory, string fileExtension, List<string> files)
 			{
-				using (FileStream fs = File.OpenRead(path))
-				{
-					MD5 md5 = new MD5CryptoServiceProvider();
-					byte[] fileData = new byte[fs.Length];
-					fs.Read(fileData, 0, (int)fs.Length);
-					byte[] checkSum = md5.ComputeHash(fileData);
-					string result = BitConverter.ToString(checkSum).Replace("-", String.Empty);
-					return result;
-				}
-			}
-			else
-			{
-				return "0";
+				string[] directories = Directory.GetDirectories(rootDirectory);
+				files.AddRange(Directory.GetFiles(rootDirectory, fileExtension));
+
+				foreach (string path in directories)
+					GetAllFiles(path, fileExtension, files);
 			}
 		}
 	}
