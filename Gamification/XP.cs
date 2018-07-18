@@ -1,29 +1,50 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Gamification
 {
 	class XP
 	{
 		private float[] xpCoefficent;       // XP increase coefficent
-		private int xpTarget  { get; set; } // XP need to up level
-		private int currentXp { get; set; } // XP on current time
+		private int targetXp;               // XP need to up level
+		private int currentXp;              // XP on current time
 		private int currentLvl;             // Current LVL
 
-		public XP(int xpTarget, float[] xpCoefficent)
+		public XP(int targetXp, float[] xpCoefficent, int currentXp, int currentLvl)
 		{
-			this.xpTarget = xpTarget;
+			this.targetXp = targetXp;
 			this.xpCoefficent = xpCoefficent;
+			this.currentXp = currentXp;
+			this.currentLvl = currentLvl;
 		}
 
-		private void LevelUp()
+		public int GetXP() { return currentXp; }
+
+		public int GetTarget() { return targetXp; }
+
+		public int GetLevel()  { return currentLvl; }
+
+		public void IncreaseXp(int inc)
 		{
-			float temp = xpTarget;
+			currentXp += inc;
+			CheckXp();
+		}
+
+		private void CheckXp()
+		{
+			if (currentXp >= targetXp)
+			{
+				LevelUp();
+			}
+		}
+
+		public void LevelUp()
+		{
+			currentXp -= targetXp;
+
+			float temp = targetXp;
 			temp *= xpCoefficent[currentLvl % 2];
-			xpTarget = (int)temp;
+			targetXp = (int)temp;
+
 			currentLvl++;
 		}
 	}
