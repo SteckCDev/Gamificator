@@ -1,15 +1,13 @@
-﻿using System;
-
-namespace Gamification
+﻿namespace Gamification
 {
 	class XP
 	{
-		private float[] xpCoefficent;       // XP increase coefficent
-		private int targetXp;               // XP need to up level
-		private int currentXp;              // XP on current time
-		private int currentLvl;             // Current LVL
+		private readonly float[] xpCoefficent; // XP increase coefficent
+		private int targetXp;                  // XP need to up level
+		private int currentXp;                 // XP on current time
+		private int currentLvl;                // LEVEL on current time
 
-		public XP(int targetXp, float[] xpCoefficent, int currentXp, int currentLvl)
+		public XP(float[] xpCoefficent, int targetXp, int currentXp, int currentLvl)
 		{
 			this.targetXp = targetXp;
 			this.xpCoefficent = xpCoefficent;
@@ -17,7 +15,7 @@ namespace Gamification
 			this.currentLvl = currentLvl;
 		}
 
-		public int GetXP() { return currentXp; }
+		public int GetXP()     { return currentXp; }
 
 		public int GetTarget() { return targetXp; }
 
@@ -26,11 +24,7 @@ namespace Gamification
 		public void IncreaseXp(int inc)
 		{
 			currentXp += inc;
-			CheckXp();
-		}
 
-		private void CheckXp()
-		{
 			if (currentXp >= targetXp)
 			{
 				LevelUp();
@@ -40,11 +34,7 @@ namespace Gamification
 		public void LevelUp()
 		{
 			currentXp -= targetXp;
-
-			float temp = targetXp;
-			temp *= xpCoefficent[currentLvl % 2];
-			targetXp = (int)temp;
-
+			targetXp = (int)(targetXp * xpCoefficent[currentLvl % 2]);
 			currentLvl++;
 		}
 	}
