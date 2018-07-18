@@ -11,8 +11,9 @@ namespace Gamification
 	{
 		XP xp;
 		Thread mon;
+		IniFile cfg;
 
-		readonly int srcQuantity = 2;
+		int srcQuantity;
 		string dir;
 		string projectName;
 		string[] srcList;
@@ -27,11 +28,15 @@ namespace Gamification
 			TopMost = true;
 			Screen sc = Screen.FromHandle(Handle);
 			Location = new Point(SystemInformation.PrimaryMonitorSize.Width - Size.Width, sc.WorkingArea.Height - Size.Height);
+		}
 
-			xp = new XP(new float[] { 1.5f, 2f }, 50, 0, 0); // TAKE FROM CONFIG
+		private void MainForm_Load(object sender, EventArgs e)
+		{
+			cfg = new IniFile("cfg.ini");
+			xp = new XP(new float[] { 1.5f, 2f }, Int32.Parse(cfg.Read("target", "constructor")), Int32.Parse(cfg.Read("xp", "constructor")), Int32.Parse(cfg.Read("level", "constructor"))); // TAKE FROM CONFIG
 
-			dir = "C:/Users/grief/Documents/Visual Studio 2017/Projects/Learning/Learning/";
-			projectName = "Learning";
+			dir = cfg.Read("dir", "constructor");
+			projectName = cfg.Read("project", "constructor");
 
 			List<string> sourceList = new List<string>();
 			FileHelper.GetAllFiles(dir, "*.cpp", sourceList);
@@ -49,23 +54,20 @@ namespace Gamification
 
 			DateTime dateTime;
 			dateTime = File.GetLastWriteTime($"{dir}../Release/{projectName}.exe");
-			lastRelease = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute }; // TAKE FROM CONFIG
+			lastRelease = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute };
 			dateTime = File.GetLastWriteTime($"{dir}../Debug/{projectName}.exe");
-			lastDebug = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute };   // TAKE FROM CONFIG
+			lastDebug = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute };
 
 			for (int i = 0; i < srcQuantity; i++)
 			{
 				lines[i] = File.ReadAllLines(srcList[i]).Length;
 			}
-		}
 
-		private void MainForm_Load(object sender, EventArgs e)
-		{
 			UpdateInfo();
 			Start();
 		}
 
-		private void MainForm_FormClosing(object sender, FormClosingEventArgs e) { Stop(); }
+		private void MainForm_FormClosing(object sender, FormClosingEventArgs e) { Stop(); ConfigWrite(); }
 
 		private void Monitoring()
 		{
@@ -134,6 +136,15 @@ namespace Gamification
 			SetLocation(new Point(Size.Width / 2 - ui_level.Size.Width / 2, ui_level.Location.Y), ui_level);
 			SetLocation(new Point(12, ui_xp.Location.Y), ui_xp);
 			SetLocation(new Point(Size.Width - 12 - ui_xpTarget.Size.Width, ui_xpTarget.Location.Y), ui_xpTarget);
+
+			ConfigWrite();
+		}
+
+		private void ConfigWrite()
+		{
+			cfg.Write("target", xp.GetTarget().ToString(), "constructor");
+			cfg.Write("xp", xp.GetXP().ToString(), "constructor");
+			cfg.Write("level", xp.GetLevel().ToString(), "constructor");
 		}
 
 		/* THREADS */
