@@ -32,14 +32,44 @@ namespace Gamification
 
 		private void MainForm_Load(object sender, EventArgs e)
 		{
+			if (!File.Exists("cfg.ini"))
+			{
+				using (var sw = File.AppendText(@"cfg.ini"))
+				{
+					sw.WriteLine("[constructor]");
+					sw.WriteLine("dir=");
+					sw.WriteLine("project=");
+					sw.WriteLine("target=");
+					sw.WriteLine("xp=");
+					sw.WriteLine("level=");
+				}
+			}
+
 			cfg = new IniFile("cfg.ini");
-			xp = new XP(new float[] { 1.5f, 2f }, Int32.Parse(cfg.Read("target", "constructor")), Int32.Parse(cfg.Read("xp", "constructor")), Int32.Parse(cfg.Read("level", "constructor"))); // TAKE FROM CONFIG
+
+			try
+			{
+				xp = new XP(new float[] { 1.5f, 2f }, Int32.Parse(cfg.Read("target", "constructor")), Int32.Parse(cfg.Read("xp", "constructor")), Int32.Parse(cfg.Read("level", "constructor"))); // TAKE FROM CONFIG
+			}
+			catch
+			{
+				MessageBox.Show("Fill config first", "Error in config");
+				Environment.Exit(0);
+			}
 
 			dir = cfg.Read("dir", "constructor");
 			projectName = cfg.Read("project", "constructor");
 
 			List<string> sourceList = new List<string>();
-			FileHelper.GetAllFiles(dir, "*.cpp", sourceList);
+			try
+			{
+				FileHelper.GetAllFiles(dir, "*.cpp", sourceList);
+			}
+			catch
+			{
+				MessageBox.Show("Directory is empty or not exist", "Error in config");
+				Environment.Exit(0);
+			}
 			var temp = sourceList.ToArray();
 			sourceList = null;
 			sourceList = new List<string>();
