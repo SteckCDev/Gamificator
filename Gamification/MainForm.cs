@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 
 namespace Gamification
 {
@@ -16,10 +17,13 @@ namespace Gamification
 		int srcQuantity;
 		string dir;
 		string projectName;
+		string pathRelease;
+		string pathDebug;
 		string[] srcList;
 		int[] lines;
-		int[] lastRelease;
-		int[] lastDebug;
+
+		string lastRelease;
+		string lastDebug;
 
 		public MainForm()
 		{
@@ -59,6 +63,8 @@ namespace Gamification
 
 			dir = cfg.Read("dir", "constructor");
 			projectName = cfg.Read("project", "constructor");
+			pathRelease = $"{dir}../Release/{projectName}.exe";
+			pathDebug = $"{dir}../Debug/{projectName}.exe";
 
 			List<string> sourceList = new List<string>();
 			try
@@ -67,13 +73,22 @@ namespace Gamification
 			}
 			catch
 			{
-				MessageBox.Show("Directory is empty or not exist", "Error in config");
+				MessageBox.Show("Directory is empty or doesn't exist", "Error in config");
 				Environment.Exit(0);
 			}
 			var temp = sourceList.ToArray();
 			sourceList = null;
 			sourceList = new List<string>();
-			FileHelper.GetAllFiles(dir, "*.h", sourceList);
+			try
+			{
+				FileHelper.GetAllFiles(dir, "*.h", sourceList);
+			}
+			catch
+			{
+				MessageBox.Show("Directory is empty or doesn't exist", "Error in config");
+				Environment.Exit(0);
+			}
+
 
 			srcList = new string[temp.Length + sourceList.ToArray().Length];
 			temp.CopyTo(srcList, 0);
@@ -82,11 +97,8 @@ namespace Gamification
 			srcQuantity = srcList.Length;
 			lines = new int[srcQuantity];
 
-			DateTime dateTime;
-			dateTime = File.GetLastWriteTime($"{dir}../Release/{projectName}.exe");
-			lastRelease = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute };
-			dateTime = File.GetLastWriteTime($"{dir}../Debug/{projectName}.exe");
-			lastDebug = new int[] { dateTime.Year, dateTime.DayOfYear, dateTime.Hour, dateTime.Minute };
+			lastRelease = File.Exists(pathRelease) ? CalculateMD5(pathRelease) : "0";
+			lastDebug   = File.Exists(pathDebug)   ? CalculateMD5(pathDebug)   : "0";
 
 			for (int i = 0; i < srcQuantity; i++)
 			{
@@ -119,7 +131,7 @@ namespace Gamification
 						}
 						else if (currLines < lines[i])
 						{
-							//lines[i] = currLines;
+							lines[i] = currLines;
 						}
 					}
 				}
@@ -128,10 +140,10 @@ namespace Gamification
 
 				/* RELEASE CHECK START */
 
-				DateTime dateTime = File.GetLastWriteTime($"{dir}../Release/{projectName}.exe");
-				if (dateTime.Year > lastRelease[0] || dateTime.DayOfYear > lastRelease[1] || dateTime.Hour > lastRelease[2] || dateTime.Minute > lastRelease[3])
+				string currRelease = File.Exists(pathRelease) ? CalculateMD5(pathRelease) : "0";
+				if (currRelease != lastRelease && currRelease != "0")
 				{
-					lastRelease[0] = dateTime.Year; lastRelease[1] = dateTime.DayOfYear; lastRelease[2] = dateTime.Hour; lastRelease[3] = dateTime.Minute;
+					lastRelease = currRelease;
 					xp.IncreaseXp(20);
 				}
 
@@ -139,10 +151,10 @@ namespace Gamification
 
 				/* DEBUG CHECK START */
 
-				dateTime = File.GetLastWriteTime($"{dir}../Debug/{projectName}.exe");
-				if (dateTime.Year > lastDebug[0] || dateTime.DayOfYear > lastDebug[1] || dateTime.Hour > lastDebug[2] || dateTime.Minute > lastDebug[3])
+				string currDebug = File.Exists(pathDebug) ? CalculateMD5(pathDebug) : "0";
+				if (currDebug != lastDebug && currDebug != "0")
 				{
-					lastDebug[0] = dateTime.Year; lastDebug[1] = dateTime.DayOfYear; lastDebug[2] = dateTime.Hour; lastDebug[3] = dateTime.Minute;
+					lastDebug = currDebug;
 					xp.IncreaseXp(5);
 				}
 
@@ -250,6 +262,18 @@ namespace Gamification
 
 				foreach (string path in directories)
 					GetAllFiles(path, fileExtension, files);
+			}
+		}
+
+		string CalculateMD5(string filename)
+		{
+			using (var md5 = MD5.Create())
+			{
+				using (var stream = File.Open(filename, FileMode.OpenOrCreate, FileAccess.Read))
+				{
+					var hash = md5.ComputeHash(stream);
+					return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+				}
 			}
 		}
 	}
