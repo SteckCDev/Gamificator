@@ -22,6 +22,9 @@ namespace Gamification
 		string[] srcList;
 		int[] lines;
 
+		string logPath;
+		string cfgPath;
+
 		string lastRelease;
 		string lastDebug;
 
@@ -29,31 +32,63 @@ namespace Gamification
 		{
 			InitializeComponent();
 
-			TopMost = true;
 			Screen sc = Screen.FromHandle(Handle);
 			Location = new Point(SystemInformation.PrimaryMonitorSize.Width - Size.Width, sc.WorkingArea.Height - Size.Height);
 		}
 
 		private void MainForm_Load(object sender, EventArgs e)
 		{
-			if (!File.Exists("cfg.ini"))
+			cfgPath = @"cfg.ini";
+			logPath = @"xp.log";
+
+			if (!File.Exists(cfgPath))
 			{
-				using (var sw = File.AppendText(@"cfg.ini"))
+				using (var sw = File.AppendText(cfgPath))
 				{
 					sw.WriteLine("[constructor]");
-					sw.WriteLine("dir=");
-					sw.WriteLine("project=");
-					sw.WriteLine("target=");
-					sw.WriteLine("xp=");
-					sw.WriteLine("level=");
+					sw.WriteLine("dir=C:/Empty");
+					sw.WriteLine("project=Empty");
+					sw.WriteLine("target=50");
+					sw.WriteLine("xp=0");
+					sw.WriteLine("level=0");
 				}
+			}
+
+			if (!File.Exists(logPath))
+			{
+				File.Create(logPath);
 			}
 
 			cfg = new IniFile("cfg.ini");
 
+			using (var fbd = new FolderBrowserDialog())
+			{
+				if (fbd.ShowDialog() == DialogResult.OK)
+				{
+					dir = fbd.SelectedPath;
+					projectName = Path.GetFileName(dir);
+					cfg.Write("dir", dir, "constructor");
+					cfg.Write("project", projectName, "constructor");
+				}
+				else
+				{
+					dir = cfg.Read("dir", "constructor");
+					projectName = cfg.Read("project", "constructor");
+				}
+			}
+
+			pathRelease = $"{dir}/Release/{projectName}.exe";
+			pathDebug = $"{dir}/Debug/{projectName}.exe";
+
 			try
 			{
-				xp = new XP(new float[] { 1.5f, 2f }, Int32.Parse(cfg.Read("target", "constructor")), Int32.Parse(cfg.Read("xp", "constructor")), Int32.Parse(cfg.Read("level", "constructor"))); // TAKE FROM CONFIG
+				xp = new XP
+				(
+					new float[] { 1.5f, 2f },
+					Int32.Parse(cfg.Read("target", "constructor")),
+					Int32.Parse(cfg.Read("xp", "constructor")),
+					Int32.Parse(cfg.Read("level", "constructor"))
+				);
 			}
 			catch
 			{
@@ -61,34 +96,31 @@ namespace Gamification
 				Environment.Exit(0);
 			}
 
-			dir = cfg.Read("dir", "constructor");
-			projectName = cfg.Read("project", "constructor");
-			pathRelease = $"{dir}../Release/{projectName}.exe";
-			pathDebug = $"{dir}../Debug/{projectName}.exe";
-
 			List<string> sourceList = new List<string>();
+
 			try
 			{
-				FileHelper.GetAllFiles(dir, "*.cpp", sourceList);
+				FileHelper.GetAllFiles($"{dir}/{projectName}", "*.cpp", sourceList);
 			}
 			catch
 			{
 				MessageBox.Show("Directory is empty or doesn't exist", "Error in config");
 				Environment.Exit(0);
 			}
+
 			var temp = sourceList.ToArray();
 			sourceList = null;
 			sourceList = new List<string>();
+
 			try
 			{
-				FileHelper.GetAllFiles(dir, "*.h", sourceList);
+				FileHelper.GetAllFiles($"{dir}/{projectName}", "*.h", sourceList);
 			}
 			catch
 			{
 				MessageBox.Show("Directory is empty or doesn't exist", "Error in config");
 				Environment.Exit(0);
 			}
-
 
 			srcList = new string[temp.Length + sourceList.ToArray().Length];
 			temp.CopyTo(srcList, 0);
@@ -109,14 +141,18 @@ namespace Gamification
 			Start();
 		}
 
-		private void MainForm_FormClosing(object sender, FormClosingEventArgs e) { Stop(); ConfigWrite(); }
+		private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+		{
+			Stop();
+			ConfigWrite();
+		}
 
 		private void Monitoring()
 		{
 			while (true)
 			{
 				int startXp = xp.GetXP();
-				int tarXp = xp.GetTarget();
+				int targetXp = xp.GetTarget();
 
 				/* SRC CHECK START */
 
@@ -126,7 +162,9 @@ namespace Gamification
 						int currLines = File.ReadAllLines(srcList[i]).Length;
 						if (currLines > lines[i])
 						{
-							xp.IncreaseXp(currLines - lines[i]);
+							int linesAdded = currLines - lines[i];
+							xp.IncreaseXp(linesAdded);
+							LogWrite($"Lines was added", linesAdded);
 							lines[i] = currLines;
 						}
 						else if (currLines < lines[i])
@@ -145,6 +183,7 @@ namespace Gamification
 				{
 					lastRelease = currRelease;
 					xp.IncreaseXp(20);
+					LogWrite($"Successful release", 20);
 				}
 
 				/* RELEASE CHECK END */
@@ -156,13 +195,20 @@ namespace Gamification
 				{
 					lastDebug = currDebug;
 					xp.IncreaseXp(5);
+					LogWrite($"Successful debug", 5);
 				}
 
 				/* DEBUG CHECK END */
 
-				if (startXp != xp.GetXP() || tarXp != xp.GetTarget())
+				if (startXp != xp.GetXP() || targetXp != xp.GetTarget())
 				{
+					if (xp.GetTarget() > targetXp)
+					{
+						LogWrite($"Level up");
+					}
+
 					UpdateInfo();
+					ConfigWrite();
 				}
 				
 				Thread.Sleep(1000);
@@ -189,6 +235,14 @@ namespace Gamification
 			cfg.Write("level", xp.GetLevel().ToString(), "constructor");
 		}
 
+		private void LogWrite(string ev, int xp = 0)
+		{
+			using (var sw = File.AppendText(@"xp.log"))
+			{
+				sw.WriteLine($"{DateTime.Now} - XP: {xp} Event: {ev}");
+			}
+		}
+
 		/* THREADS */
 		/* THREADS */
 		/* THREADS */
@@ -207,7 +261,7 @@ namespace Gamification
 
 		delegate void StringArgReturningVoidDelegate(string text, Control obj);
 		delegate void LocationArgReturningVoidDelegate(Point point, Control obj);
-		delegate void IntegerArgReturningVoidDelegate(int value, int max, ProgressBar obj);
+		delegate void ProgressBarArgReturningVoidDelegate(int value, int max, ProgressBar obj);
 
 		private void SetText(string text, Control obj)
 		{
@@ -226,7 +280,7 @@ namespace Gamification
 		{
 			if (obj.InvokeRequired)
 			{
-				IntegerArgReturningVoidDelegate d = new IntegerArgReturningVoidDelegate(SetValue);
+				ProgressBarArgReturningVoidDelegate d = new ProgressBarArgReturningVoidDelegate(SetValue);
 				Invoke(d, new object[] { value, max, obj });
 			}
 			else
@@ -267,13 +321,21 @@ namespace Gamification
 
 		string CalculateMD5(string filename)
 		{
-			using (var md5 = MD5.Create())
+			try
 			{
-				using (var stream = File.Open(filename, FileMode.OpenOrCreate, FileAccess.Read))
+				using (var md5 = MD5.Create())
 				{
-					var hash = md5.ComputeHash(stream);
-					return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+					using (var stream = File.Open(filename, FileMode.OpenOrCreate, FileAccess.Read))
+					{
+						var hash = md5.ComputeHash(stream);
+						return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+					}
 				}
+			}
+			catch
+			{
+				Thread.Sleep(5000);
+				return CalculateMD5(filename);
 			}
 		}
 	}

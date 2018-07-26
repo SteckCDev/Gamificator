@@ -31,7 +31,7 @@
 			}
 		}
 
-		public void LevelUp()
+		private void LevelUp()
 		{
 			currentXp -= targetXp;
 			targetXp = (int)(targetXp * xpCoefficent[currentLvl % 2]);
